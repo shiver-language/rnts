@@ -32,7 +32,7 @@ depend on it. Tasks may depend on other tasks. For example:
         ( app.tar.gz )              
 ```
 You can execute any tasks. `rnts` will run all the dependency tasks of it. Say
-you request `rnts` to execute the `link` task, the pull dependency and the 
+you request `rnts` to execute the link task, the pull dependency and the 
 two compile tasks will be ran, followed by running the actual link task. 
 
 Features:
