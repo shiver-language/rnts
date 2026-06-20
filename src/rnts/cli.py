@@ -39,44 +39,60 @@ def main() -> None:
         print("Usage: rnts <module_name>.<command_name>")
         sys.exit(1)
 
-    # find and load the build file
-    if not load_user_build_file():
-        print("Error: No 'build.py' found in the current directory.")
-        sys.exit(1)
+    lock_path = Path.cwd() / "out" / ".rnts.lock"
 
-    target = sys.argv[1]
-    if "." not in target:
-        print(
-            f"Error: Invalid target format '{target}'. Use 'module_name.command_name'."
-        )
-        sys.exit(1)
-
-    mod_name, cmd_name = target.split(".", 1)
-
-    # look up modules
-    module_instance = Module.get_module(mod_name)
-    if not module_instance:
-        available_mods = list(Module._registry.keys())  # pyright: ignore[reportPrivateUsage]
-        print(f"Error: Module '{mod_name}' not found.")
-        print(f"Registered modules: {available_mods}")
-        sys.exit(1)
-
-    # look up the task or commands
-    if not hasattr(module_instance, cmd_name):
-        print(f"Error: Command or Task '{cmd_name}' not found on module '{mod_name}'.")
-        sys.exit(1)
-
-    # too satisfy pyright
-    task_func = cast(Callable[[], None], getattr(module_instance, cmd_name))
-
-    # run this
     try:
-        print(f"Running this: {mod_name}.{cmd_name}...")
-        task_func()
-        print("This ran successfully.")
-    except Exception as e:
-        print(f"This failed with an exception: {e}")
-        sys.exit(1)
+        # detect / write lock file
+        if lock_path.is_file():
+            print("Another RNTS instance is running")
+            print("If you are certain that it is not, delete", str(lock_path))
+            sys.exit(1)
+
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        lock_path.touch()
+
+        # find and load the build file
+        if not load_user_build_file():
+            print("Error: No 'build.py' found in the current directory.")
+            sys.exit(1)
+
+        target = sys.argv[1]
+        if "." not in target:
+            print(
+                f"Error: Invalid target format '{target}'. Use 'module_name.command_name'."
+            )
+            sys.exit(1)
+
+        mod_name, cmd_name = target.split(".", 1)
+
+        # look up modules
+        module_instance = Module.get_module(mod_name)
+        if not module_instance:
+            available_mods = list(Module._registry.keys())  # pyright: ignore[reportPrivateUsage]
+            print(f"Error: Module '{mod_name}' not found.")
+            print(f"Registered modules: {available_mods}")
+            sys.exit(1)
+
+        # look up the task or commands
+        if not hasattr(module_instance, cmd_name):
+            print(
+                f"Error: Command or Task '{cmd_name}' not found on module '{mod_name}'."
+            )
+            sys.exit(1)
+
+        # too satisfy pyright
+        task_func = cast(Callable[[], None], getattr(module_instance, cmd_name))
+
+        # run this
+        try:
+            print(f"Running this: {mod_name}.{cmd_name}...")
+            task_func()
+            print("This ran successfully.")
+        except Exception as e:
+            print(f"This failed with an exception: {e}")
+            sys.exit(1)
+    finally:
+        lock_path.unlink()
 
 
 if __name__ == "__main__":
