@@ -2,6 +2,32 @@
 
 `rnts`, short for "run this", is a build tool / command runner written in Python.
 
+```python
+from pathlib import Path
+from rnts import Module, task, ctx
+
+class StaticSite(Module):
+    @task
+    def generate_html(self):
+        # ctx.dest is an automatically generated variable that points
+        # to where the task output should be at
+        # in this case, out/StaticSite/frontend/generate_html
+        print(f"generating site assets in: {ctx.dest}")
+        
+        index_file = ctx.dest / "index.html"
+        index_file.write_text("<h1>hello</h1>")
+
+StaticSite(name="frontend")
+
+# run `rnts frontend.generate_html` to execute
+```
+
+## Building
+You will need `uv`.
+```bash
+uv tool install --editable .
+```
+
 ## What is RNTS?
 
 `rnts` is intended as a build tool for the Shiver language project, but it is not 
