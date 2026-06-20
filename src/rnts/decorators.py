@@ -104,8 +104,17 @@ def task(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]
             return cast(R, _PROCESS_CACHE[key])
 
         # define the path where task metadata and cache state are saved
-        out_base = Path.cwd() / "out" / "modules" / self.__class__.__name__ / self.module_name
-        meta_file = Path.cwd() / "out" / "hashes" / self.__class__.__name__ / self.module_name / f"{func.__name__}.json"
+        out_base = (
+            Path.cwd() / "out" / "modules" / self.__class__.__name__ / self.module_name
+        )
+        meta_file = (
+            Path.cwd()
+            / "out"
+            / "hashes"
+            / self.__class__.__name__
+            / self.module_name
+            / f"{func.__name__}.json"
+        )
 
         # this part is atrocious
         if meta_file.exists():
