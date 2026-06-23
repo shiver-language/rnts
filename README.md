@@ -63,7 +63,7 @@ two compile tasks will be ran, followed by running the actual link task.
 
 Features:
 - caching: tasks that are already ran won't have to run again if the sources it depends on remain unchanged
-- parallelism: tasks can run in parallel to each other whenever possible (in development)
+- concurrency: tasks can run in parallel to each other whenever possible
 - intuitive: easy to write, easy to reason about, you can express any build pipelines with this model
 - powerful: build scripts are written in Python
 
