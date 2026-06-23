@@ -1,6 +1,6 @@
 # Project Setup and Structure
 
-To create an RNTS project, you need a specific directory structure with alongside
+To create an `rnts` project, you need a specific directory structure with alongside
 the configuration script named `build.py`.
 
 ## Directory Structure
@@ -86,7 +86,7 @@ they are writing data and who called them.
 - Execution Stack: `ctx` maintains a stack of active tasks (`push_task`, `pop_task`). This allows `rnts` to implicitly build a dependency tree. If `task a` calls `task b`, `task b` is automatically recorded as an upstream dependency of `task a`.
 
 
-## Runtihe
+## Runtime
 
 The `RntsRuntime` class (imported as the `rnts` variable) provides helper methods for writing build scripts safely and concurrently.
 
