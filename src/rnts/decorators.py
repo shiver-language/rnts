@@ -16,10 +16,12 @@ import functools
 import hashlib
 import json
 from pathlib import Path
+import threading
 from typing import Callable, TypeVar, ParamSpec, Concatenate, cast
+from filelock import FileLock  # Added for cross-thread/process file locking
+
 from .context import ctx
 from .models import Module, PathRef
-import threading
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -146,12 +148,13 @@ class CacheManager:
             return False, None
 
         try:
-            meta = cast(dict[str, object], json.loads(self.meta_file.read_text()))
+            meta_lock = FileLock(f"{self.meta_file}.lock")
+            with meta_lock:
+                meta = cast(dict[str, object], json.loads(self.meta_file.read_text()))
 
             # verify tracked source file hashes
             sources = meta.get("sources")
             if isinstance(sources, list):
-                # it was originall of type unknown but pyright doesn't like it so we do this
                 for src_item in cast(list[object], sources):
                     if isinstance(src_item, list):
                         typed_src = cast(list[object], src_item)
@@ -173,11 +176,14 @@ class CacheManager:
                                 / str(src_mod_name)
                                 / str(src_name)
                             )
-                            if (
-                                not curr_hash_file.exists()
-                                or curr_hash_file.read_text().strip()
-                                != str(expected_hash)
-                            ):
+
+                            hash_lock = FileLock(f"{curr_hash_file}.lock")
+                            with hash_lock:
+                                if not curr_hash_file.exists():
+                                    return False, None
+                                curr_hash_val = curr_hash_file.read_text().strip()
+
+                            if curr_hash_val != str(expected_hash):
                                 return False, None
                         else:
                             return False, None
@@ -185,7 +191,6 @@ class CacheManager:
             # verify output values of upstream tasks
             tasks = meta.get("tasks")
             if isinstance(tasks, list):
-                # another pyright typecheck issue...
                 for task_item in cast(list[object], tasks):
                     if isinstance(task_item, list):
                         typed_task = cast(list[object], task_item)
@@ -223,7 +228,11 @@ class CacheManager:
         }
 
         self.meta_file.parent.mkdir(parents=True, exist_ok=True)
-        _ = self.meta_file.write_text(json.dumps(meta_data, indent=4))
+
+        meta_lock = FileLock(f"{self.meta_file}.lock")
+        with meta_lock:
+            _ = self.meta_file.write_text(json.dumps(meta_data, indent=4))
+
         return serialized_res
 
 
@@ -231,7 +240,6 @@ def task(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]
     # decorator to cache and track build tasks based on dependencies
     @functools.wraps(func)
     def wrapper(self: M, *args: P.args, **kwargs: P.kwargs) -> R:
-        # does the process cache has it? if yes then we go fast path
         if _PROCESS_CACHE.has(self.module_name, func.__name__):
             return cast(R, _PROCESS_CACHE.get(self.module_name, func.__name__))
 
@@ -280,7 +288,10 @@ def source(func: Callable[[M], Path]) -> Callable[[M], Path]:
             / func.__name__
         )
         hash_file.parent.mkdir(parents=True, exist_ok=True)
-        _ = hash_file.write_text(current_hash)
+
+        hash_lock = FileLock(f"{hash_file}.lock")
+        with hash_lock:
+            _ = hash_file.write_text(current_hash)
 
         ctx.record_source(self.module_name, func.__name__, current_hash)
         return src_dir
