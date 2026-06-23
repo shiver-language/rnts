@@ -19,13 +19,37 @@ from pathlib import Path
 from typing import Callable, TypeVar, ParamSpec, Concatenate, cast
 from .context import ctx
 from .models import Module, PathRef
+import threading
 
 P = ParamSpec("P")
 R = TypeVar("R")
 M = TypeVar("M", bound=Module)
 
+
+class ProcessCache:
+    def __init__(self) -> None:
+        self._storage: dict[tuple[str, str], object] = {}
+        self._lock: threading.RLock = threading.RLock()
+
+    def get(self, module_name: str, func_name: str) -> object | None:
+        with self._lock:
+            return self._storage.get((module_name, func_name))
+
+    def set(self, module_name: str, func_name: str, value: object) -> None:
+        with self._lock:
+            self._storage[(module_name, func_name)] = value
+
+    def has(self, module_name: str, func_name: str) -> bool:
+        with self._lock:
+            return (module_name, func_name) in self._storage
+
+    def clear(self) -> None:
+        with self._lock:
+            self._storage.clear()
+
+
 # cache for process results keyed by module name and function name
-_PROCESS_CACHE: dict[tuple[str, str], object] = {}
+_PROCESS_CACHE = ProcessCache()
 
 
 def _compute_dir_hash(directory: Path) -> str:
@@ -97,11 +121,9 @@ def task(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]
     # decorator to cache and track build tasks based on dependencies
     @functools.wraps(func)
     def wrapper(self: M, *args: P.args, **kwargs: P.kwargs) -> R:
-        key = (self.module_name, func.__name__)
-
         # check if the result is already in the cache
-        if key in _PROCESS_CACHE:
-            return cast(R, _PROCESS_CACHE[key])
+        if _PROCESS_CACHE.has(self.module_name, func.__name__):
+            return cast(R, _PROCESS_CACHE.get(self.module_name, func.__name__))
 
         # define the path where task metadata and cache state are saved
         out_base = (
@@ -196,10 +218,11 @@ def task(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]
                 if sources_match and tasks_match:
                     return_val = meta.get("return_value")
                     cached_res = _deserialize_val(return_val)
-                    _PROCESS_CACHE[key] = cached_res
+                    _PROCESS_CACHE.set(self.module_name, func.__name__, cached_res)
 
                     ctx.record_upstream_hit(self.module_name, func.__name__, return_val)
                     return cast(R, cached_res)
+
             except Exception:
                 # fall back to executing the task if any parsing or verification error occurs
                 pass
@@ -215,7 +238,7 @@ def task(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]
             with ctx.set_dest(out_dir):
                 result = func(self, *args, **kwargs)
 
-            _PROCESS_CACHE[key] = result
+            _PROCESS_CACHE.set(self.module_name, func.__name__, result)
 
             # harvest metadata details to persist cache state on disk
             deps = ctx.get_dependencies(self.module_name, func.__name__)
