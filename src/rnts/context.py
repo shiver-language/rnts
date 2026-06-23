@@ -12,87 +12,114 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import threading
 from contextlib import contextmanager
 from pathlib import Path
 from collections.abc import Generator
+from contextvars import ContextVar
 
 
-class TaskContext(threading.local):
+class TaskContext:
+    # current build destination path
+    _dest_var: ContextVar[Path | None] = ContextVar("dest", default=None)
+
+    # stack to track active tasks
+    _stack_var: ContextVar[list[tuple[str, str]]] = ContextVar("task_stack")
+    # task keys -> source and task dependencies
+    _deps_var: ContextVar[dict[tuple[str, str], dict[str, list[object]]]] = ContextVar(
+        "tracked_deps"
+    )
+
     # thread local storage to track build context across threads
     def __init__(self) -> None:
-        # current build destination path
-        self._dest: Path | None = None
-        # stack to track active tasks
-        self._task_stack: list[tuple[str, str]] = []
-        # task keys -> source and task dependencies
-        self._tracked_deps: dict[tuple[str, str], dict[str, list[object]]] = {}
+        if not self._has_context():
+            _ = self._stack_var.set([])
+            _ = self._deps_var.set({})
+
+    def _has_context(self) -> bool:
+        try:
+            _ = self._stack_var.get()
+            return True
+        except LookupError:
+            return False
 
     @property
     def dest(self) -> Path:
-        # prevent accessing destination outside an active runner scope
-        # idiot proofing is needed
-        if self._dest is None:
+        dest = self._dest_var.get()
+        if dest is None:
             raise RuntimeError("ctx.dest accessed outside of an active task execution.")
-        return self._dest
+        return dest
 
     @dest.setter
     def dest(self, path: Path) -> None:
-        self._dest = path
+        _ = self._dest_var.set(path)
+        return None
 
     @contextmanager
     def set_dest(self, path: Path) -> Generator[None, None, None]:
         # temporarily override the destination path and restore it after
-        old_dest = self._dest
-        self._dest = path
+        token = self._dest_var.set(path)
         try:
             yield
         finally:
-            self._dest = old_dest
+            self._dest_var.reset(token)
 
     def push_task(self, module_name: str, task_name: str) -> None:
         # make new task on the execution stack and init tracking maps
         key = (module_name, task_name)
-        self._task_stack.append(key)
-        self._tracked_deps[key] = {"sources": [], "tasks": []}
+
+        # shallow copy stack so child contexts don't mutate parent context stacks
+        current_stack = list(self._stack_var.get())
+        current_stack.append(key)
+        _ = self._stack_var.set(current_stack)
+
+        current_deps = dict(self._deps_var.get())
+        current_deps[key] = {"sources": [], "tasks": []}
+        _ = self._deps_var.set(current_deps)
 
     def pop_task(self) -> None:
         # p u r g e the top task from the stack once execution is done
-        if self._task_stack:
-            _ = self._task_stack.pop()
+        current_stack = list(self._stack_var.get())
+        if current_stack:
+            _ = current_stack.pop()
+            _ = self._stack_var.set(current_stack)
 
     def record_source(self, mod_name: str, fn_name: str, current_hash: str) -> None:
-        # record a source file directory hash with the currently active task
-        if self._task_stack:
-            active_key = self._task_stack[-1]
+        stack = self._stack_var.get()
+        if stack:
+            active_key = stack[-1]
+            deps = self._deps_var.get()
             record: list[object] = [mod_name, fn_name, current_hash]
             # do not duplicate identical source records
-            if record not in self._tracked_deps[active_key]["sources"]:
-                self._tracked_deps[active_key]["sources"].append(record)
+            if record not in deps[active_key]["sources"]:
+                deps[active_key]["sources"].append(record)
 
     def record_upstream_hit(
         self, mod_name: str, fn_name: str, serialized_val: object
     ) -> None:
         # log a cache hit into current task deps
-        if self._task_stack:
-            parent_key = self._task_stack[-1]
+        stack = self._stack_var.get()
+        if stack:
+            parent_key = stack[-1]
+            deps = self._deps_var.get()
             record: list[object] = [mod_name, fn_name, serialized_val]
-            self._tracked_deps[parent_key]["tasks"].append(record)
+            deps[parent_key]["tasks"].append(record)
 
     def record_upstream_miss(
         self, mod_name: str, fn_name: str, serialized_val: object
     ) -> None:
         # log a cache miss into parent task as it started this subtask
-        if len(self._task_stack) > 1:
-            parent_key = self._task_stack[-2]
+        stack = self._stack_var.get()
+        if len(stack) > 1:
+            parent_key = stack[-2]
+            deps = self._deps_var.get()
             record: list[object] = [mod_name, fn_name, serialized_val]
-            self._tracked_deps[parent_key]["tasks"].append(record)
+            deps[parent_key]["tasks"].append(record)
 
     def get_dependencies(
         self, module_name: str, task_name: str
     ) -> dict[str, list[object]]:
         # get collected source and task dependencies for a specific task
-        return self._tracked_deps.get(
+        return self._deps_var.get().get(
             (module_name, task_name), {"sources": [], "tasks": []}
         )
 
