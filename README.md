@@ -4,22 +4,60 @@
 
 ```python
 from pathlib import Path
-from rnts import Module, task, ctx
+from rnts import rnts, Module, source, task, command, PathRef, ctx
 
-class StaticSite(Module):
+class CProjectBuilder(Module):
+    def __init__(self):
+        # register this module with the name "game_engine"
+        super().__init__("game_engine") 
+
+    @source
+    def c_source(self) -> Path:
+        # @sources tracks change in the source directory for caching
+        return Path("src")
+
     @task
-    def generate_html(self):
-        # ctx.dest is an automatically generated variable that points
-        # to where the task output should be at
-        # in this case, out/StaticSite/frontend/generate_html
-        print(f"generating site assets in: {ctx.dest}")
+    def compile_core(self) -> PathRef:
+        # register this task as a dependency to the c_source path
+        # ensures that this task won't run again if there is no change in source
+        self.c_source()
         
-        index_file = ctx.dest / "index.html"
-        index_file.write_text("<h1>hello</h1>")
+        # ctx.dest points to out/modules/CProjectBuilder/game_engine/compile_core/
+        output_obj = ctx.dest / "core.o"
+        
+        # invoke compiler via the runtime helper
+        rnts.sh(["echo", "clang -c src/core.c -o", str(output_obj)], inherit_stdout=False)
 
-StaticSite(name="frontend")
+        output_obj.write_text("/* compiled c object: core engine */")
+        
+        return PathRef(output_obj)
 
-# run `rnts frontend.generate_html` to execute
+    @task
+    def compile_physics(self) -> PathRef:
+        # concurrently compile the physics engine
+        self.c_source()
+        output_obj = ctx.dest / "physics.o"
+        
+        rnts.sh(["echo", "clang -c src/physics.c -o", str(output_obj)], inherit_stdout=False)
+        output_obj.write_text("/* compiled c object: physics engine */")
+        
+        return PathRef(output_obj)
+
+    @command
+    def build_all(self) -> None:
+        # compile core.c and physics.c at the same time
+        core_obj, physics_obj = rnts.gather(self.compile_core, self.compile_physics)
+        print(f"generated objects: {core_obj}, {physics_obj}")
+
+        # as this is a @command, it runs every time to link the objects
+        executable = ctx.dest / "engine"
+        executable.write_text(f"/* linked binary: {core_obj.path.name} + {physics_obj.path.name} */")
+        print(f"binary linked at: {executable}")
+
+# instantiate to register with the CLI runner
+CProjectBuilder()
+
+# run `rnts frontend.build_all` to execute
 ```
 
 ## Building
