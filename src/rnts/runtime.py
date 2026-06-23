@@ -15,10 +15,27 @@
 import subprocess
 import shutil
 import os
+import concurrent.futures
+import contextvars
 from pathlib import Path
+from typing import Callable, TypeVar
+
+T = TypeVar("T")
+
+
+# pyright doesn't like the original way of doing it since it is on strict mode
+# so we are going to use this helper function
+def _run_with_context(ctx: contextvars.Context, task_func: Callable[[], T]) -> T:
+    return ctx.run(task_func)
 
 
 class RntsRuntime:
+    def __init__(self) -> None:
+        cores = os.cpu_count() or 1
+        self._executor: concurrent.futures.ThreadPoolExecutor = (
+            concurrent.futures.ThreadPoolExecutor(max_workers=cores)
+        )
+
     @staticmethod
     def sh(
         args: list[str],
@@ -47,6 +64,25 @@ class RntsRuntime:
             return path.relative_to(Path.cwd())
         except ValueError:
             return path
+
+    def gather(self, *tasks: Callable[[], T]) -> list[T]:
+        """
+        Executes multiple task functions concurrently using the shared,
+        process-wide ThreadPoolExecutor.
+        """
+        results: list[T] = []
+        futures: list[concurrent.futures.Future[T]] = []
+
+        for task_func in tasks:
+            ctx = contextvars.copy_context()
+
+            future = self._executor.submit(_run_with_context, ctx, task_func)
+            futures.append(future)
+
+        for future in futures:
+            results.append(future.result())
+
+        return results
 
 
 rnts = RntsRuntime()
