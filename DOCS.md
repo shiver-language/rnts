@@ -1,12 +1,11 @@
 # Project Setup and Structure
 
-To create an `rnts` project, you need a specific directory structure with alongside
-the configuration script named `build.py`.
+To create an `rnts` project, you need to make an empty directory, and then make a file named `build.py` inside the directory.
 
 ## Directory Structure
 
-Root of your workspace should contain a `build.py` file. Each module defined in said build file
-will look for it's source files in a directory with the module's name.
+The root of your workspace should contain a `build.py` file. 
+Modules defined in the build file will be searched for by name as files and loaded.
 
 ```
 my_workspace/
@@ -19,7 +18,8 @@ my_workspace/
 
 ## Writing `build.py`
 
-You define build modules and their tasks in `build.py`. This file is loaded dynamically and
+You define build modules and their tasks in `build.py`.
+This file is loaded dynamically and
 executed by the CLI.
 
 ```python
@@ -59,7 +59,8 @@ BackendModule()
 
 ## Core Concepts & Decorators
 
-The build graph is constructed using 3 decorators. These define how tasks are ran, trakced and cached.
+The build graph is constructed using 3 decorators. 
+These decorators define how tasks are ran, tracked and cached.
 
 | Decorator  | Purpose                                                                           | Caching Behavior                                                                                                   |
 | ---------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
@@ -74,16 +75,19 @@ When a `@task` is called, `rnts` performs two cache checks:
 1. `ProcessCache`: Checks if the task is already ran during current CLI execution, if so it will return
    the value immediately.
 2. `CacheManager`: It reads a `.json` metadata file in `out/hashes/`. It checks the hashes of any `@source`
-   directories and the return values of any upstraem `@task` dependencies. If everything matches, it deserializes
+   directories and the return values of any upstraem `@task` dependencies, and if everything matches it deserializes
    the previous result and skips execution.
 
 ## `ctx`
 
-`rnts` runs on a variable tracker called `TaskContext` (imported as `ctx`). This allows functions to know where
-they are writing data and who called them.
+`rnts` runs on a variable tracker called `TaskContext` (imported as `ctx`). 
+This allows functions to know where they are writing data and who called them.
 
-- `ctx.dest`: Every `@command` and `@task` is assigned an isolated output directory located in `out/modules/<ClassName>/<module_name>/<task_name>`. You must write your build artifacts to `ctx.dest`.
-- Execution Stack: `ctx` maintains a stack of active tasks (`push_task`, `pop_task`). This allows `rnts` to implicitly build a dependency tree. If `task a` calls `task b`, `task b` is automatically recorded as an upstream dependency of `task a`.
+- `ctx.dest`: Every `@command` and `@task` is assigned an isolated output directory located in `out/modules/<ClassName>/<module_name>/<task_name>`. 
+You must write your build artifacts to `ctx.dest`.
+- Execution Stack: `ctx` maintains a stack of active tasks (`push_task`, `pop_task`). 
+This allows `rnts` to implicitly build a dependency tree. 
+If `task a` calls `task b`, `task b` is automatically recorded as an upstream dependency of `task a`.
 
 ## Runtime
 
@@ -106,27 +110,25 @@ and runs them concurrently in a `ThreadPoolExecutor` sized to the host's CPU cor
 
 ### Task Output Capturing
 
-`rnts` captures the output of `stdout` and `stderr`. Once the task is done, it will send the accumulated logs to be printed.
+`rnts` captures the output of `stdout` and `stderr`. Once the task is done, it will collect the accumulated logs to be printed.
 This ensures that the print output of different tasks will not be juxtaposed, but note that the output of commands and
 any print statements will not be reflected on the terminal instantly.
 
 ### Interractive commands
 
-As said above, outputs won't be dispatched to the terminal instantly. This is useful for concurrency but not so for interractive
-tasks (for example running a piece of binary that requires user input), so you can enable the interractive option.
+Because outputs arent printed to the terminal instantly, the printing system is useful for concurrency but not so for interractive
+tasks (for example running a piece of binary that requires user input), so you can enable the interractive option to enable immediate printing to the terminal.
 
 ```python
 @command(interactive=True)
 ```
 
-This ensures that the task will output to the terminal instantly during it's runtime.
-
 ## Type Serialization (`models.py` & Internals)
 
 Because `@task` return values are cached to disk as JSON metadata, `rnts` needs to serialize and deserialize Python objects.
 
-`rnts` uses `dill`, which means it can serialize most Python types. Read [this](https://pypi.org/project/dill/)
-to see what types are supported.
+`rnts` uses `dill` which means it can serialize most Python types.
+Read [this](https://pypi.org/project/dill/) to see what types are supported.
 
 ## CLI Execution
 
@@ -136,7 +138,7 @@ To run a command, use the `rnts` CLI format from your terminal:
 rnts <module_name>.<command_name>
 ```
 
-For the example configuration provided above, you would run:
+For the example configuration provided above, you could run:
 
 ```bash
 rnts backend.build
@@ -144,7 +146,8 @@ rnts backend.build
 
 ## Logging
 
-`rnts` saves your logs. Particularly, the 5 most recent logs of `rnts`, your build script's and the binaries' prints. 
+`rnts` saves your logs.
+Particularly, the 5 most recent logs of `rnts`, your build script's and the binaries' prints. 
 You may find them in `out/logs/module_name/command_name`, where the log files contains timestamped file names.
 
 ## Safety and Locking
@@ -152,8 +155,7 @@ You may find them in `out/logs/module_name/command_name`, where the log files co
 To prevent concurrent runs from corrupting the `.json` cache metadata or overwriting artifacts in the `out/` directory,
 `rnts` uses two locking mechanisms:
 
-1. Process Lock: On startup, it makes a file named `.rnts.lock` in the `out/` directory. If another `rnts` instance
-   detects this, it immediately exits. You may delete `.rnts.lock` if you are absolutely sure that another instance
-   is not running.
-2. `FileLock`s: Individual hash files and metadata JSON files are locked during read/write operations to ensure
+1. Process Lock: On startup, it makes a file named `.rnts.lock` in the `out/` directory.
+   If another `rnts` instance detects this, it immediately exits. You may delete `.rnts.lock` if you are absolutely sure that another instance is not      running.
+2. `FileLocks`: Individual hash files and metadata JSON files are locked during read/write operations to ensure
    thread-safety when using `rnts.gather()`.
