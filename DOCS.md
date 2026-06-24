@@ -1,6 +1,6 @@
 # Project Setup and Structure
 
-To create an RNTS project, you need a specific directory structure with alongside
+To create an `rnts` project, you need a specific directory structure with alongside
 the configuration script named `build.py`.
 
 ## Directory Structure
@@ -86,17 +86,17 @@ they are writing data and who called them.
 - Execution Stack: `ctx` maintains a stack of active tasks (`push_task`, `pop_task`). This allows `rnts` to implicitly build a dependency tree. If `task a` calls `task b`, `task b` is automatically recorded as an upstream dependency of `task a`.
 
 
-## Runtihe
+## Runtime
 
 The `RntsRuntime` class (imported as the `rnts` variable) provides helper methods for writing build scripts safely and concurrently.
 
 ### Command Execution and File Operations
 
 * `rnts.sh(args, cwd, env, inherit_stdout)`: A wrapper around `subprocess.run` with `check=True` baked in.
-* **`rnts.cp(src, dest)`:** A copy utility that automatically determines whether to use `shutil.copy2` (for files) 
+* `rnts.cp(src, dest)`: A copy utility that automatically determines whether to use `shutil.copy2` (for files) 
 or `shutil.copytree` (for directories).
-* **`rnts.relativize(path)`:** Converts an absolute path to a path relative to the workspace root.
-* **`rnts.join_paths(paths)`:** Joins paths using the OS-specific path separator.
+* `rnts.relativize(path)`: Converts an absolute path to a path relative to the workspace root.
+* `rnts.join_paths(paths)`: Joins paths using the OS-specific path separator.
 
 ### Concurrency: `rnts.gather()`
 
