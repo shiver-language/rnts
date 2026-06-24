@@ -13,16 +13,24 @@
 #  limitations under the License.
 
 import functools
+import io
 import hashlib
 import json
 from pathlib import Path
 import threading
-from typing import Callable, TypeVar, ParamSpec, Concatenate, cast
+from typing import Callable, TypeVar, ParamSpec, Concatenate, cast, overload
 from filelock import FileLock
 import dill  # pyright: ignore[reportMissingTypeStubs]
 import base64
 
-from .context import ctx
+from .context import (
+    ctx,
+    output_channel,
+    task_stderr_buffer,
+    task_stdout_buffer,
+    task_interactive,
+)
+
 from .models import Module
 
 P = ParamSpec("P")
@@ -66,7 +74,7 @@ def _compute_dir_hash(directory: Path) -> str:
         if path.is_file():
             # hash the relative path string
             hasher.update(str(path.relative_to(directory)).encode("utf-8"))
-            # read file in chunks to avoid blowing up the RAM
+            # read file in chunks to avoid blowing up the ram
             with open(path, "rb") as f:
                 while chunk := f.read(65536):
                     hasher.update(chunk)
@@ -146,8 +154,8 @@ class CacheManager:
 
                             if curr_hash_val != str(expected_hash):
                                 return False, None
-                        else:
-                            return False, None
+                    else:
+                        return False, None
 
             # verify output values of upstream tasks
             tasks = meta.get("tasks")
@@ -171,8 +179,8 @@ class CacheManager:
 
                             if _serialize_val(curr_val) != expected_val_serialized:
                                 return False, None
-                        else:
-                            return False, None
+                    else:
+                        return False, None
 
             return True, meta.get("return_value")
 
@@ -213,6 +221,16 @@ def task(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]
             ctx.record_upstream_hit(self.module_name, func.__name__, serialized_val)
             return cast(R, cached_res)
 
+        # setup string buffers for current thread context
+        stdout_buf = io.StringIO()
+        stderr_buf = io.StringIO()
+        token_out = task_stdout_buffer.set(stdout_buf)
+        token_err = task_stderr_buffer.set(stderr_buf)
+
+        # force interactive off for background tasks so they always buffer correctly
+        # this stops gather() threads from leaking into an interactive stdout
+        token_interactive = task_interactive.set(False)
+
         # doesn't exist, lets run the underlying task
         ctx.push_task(self.module_name, func.__name__)
         out_dir = cache_mgr.out_base / func.__name__
@@ -225,10 +243,17 @@ def task(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]
             _PROCESS_CACHE.set(self.module_name, func.__name__, result)
             serialized_res = cache_mgr.write_cache(result)
             ctx.record_upstream_miss(self.module_name, func.__name__, serialized_res)
-
             return result
         finally:
             ctx.pop_task()
+            # reset context vars
+            task_interactive.reset(token_interactive)
+            task_stdout_buffer.reset(token_out)
+            task_stderr_buffer.reset(token_err)
+            # offload task logs as a single batch to the channel
+            # then it will be printed sometimes in future
+            output_channel.put("stdout", stdout_buf.getvalue())
+            output_channel.put("stderr", stderr_buf.getvalue())
 
     setattr(wrapper, "__is_rnts_task__", True)
     return cast(Callable[Concatenate[M, P], R], wrapper)
@@ -260,23 +285,48 @@ def source(func: Callable[[M], Path]) -> Callable[[M], Path]:
     return wrapper
 
 
-def command(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]:
-    @functools.wraps(func)
-    def wrapper(self: M, *args: P.args, **kwargs: P.kwargs) -> R:
-        ctx.push_task(self.module_name, func.__name__)
-        out_dir = (
-            Path.cwd()
-            / "out"
-            / "modules"
-            / self.__class__.__name__
-            / self.module_name
-            / func.__name__
-        )
-        out_dir.mkdir(parents=True, exist_ok=True)
-        try:
-            with ctx.set_dest(out_dir):
-                return func(self, *args, **kwargs)
-        finally:
-            ctx.pop_task()
+@overload
+def command(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]: ...
 
-    return cast(Callable[Concatenate[M, P], R], wrapper)
+
+@overload
+def command(
+    *, interactive: bool
+) -> Callable[[Callable[Concatenate[M, P], R]], Callable[Concatenate[M, P], R]]: ...
+
+
+def command(
+    func: Callable[Concatenate[M, P], R] | None = None,
+    *,
+    interactive: bool = False,
+) -> (
+    Callable[Concatenate[M, P], R]
+    | Callable[[Callable[Concatenate[M, P], R]], Callable[Concatenate[M, P], R]]
+):
+    def decorator(fn: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]:
+        @functools.wraps(fn)
+        def wrapper(self: M, *args: P.args, **kwargs: P.kwargs) -> R:
+            # toggle interactive mode for stream proxy
+            token = task_interactive.set(interactive)
+            ctx.push_task(self.module_name, fn.__name__)
+            out_dir = (
+                Path.cwd()
+                / "out"
+                / "modules"
+                / self.__class__.__name__
+                / self.module_name
+                / fn.__name__
+            )
+            out_dir.mkdir(parents=True, exist_ok=True)
+            try:
+                with ctx.set_dest(out_dir):
+                    return fn(self, *args, **kwargs)
+            finally:
+                ctx.pop_task()
+                task_interactive.reset(token)
+
+        return cast(Callable[Concatenate[M, P], R], wrapper)
+
+    if func is None:
+        return decorator
+    return decorator(func)

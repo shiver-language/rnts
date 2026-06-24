@@ -16,6 +16,95 @@ from contextlib import contextmanager
 from pathlib import Path
 from collections.abc import Generator
 from contextvars import ContextVar
+from typing import TextIO, cast
+import sys
+import threading
+import queue
+import io
+
+task_stdout_buffer: ContextVar[io.StringIO | None] = ContextVar(
+    "task_stdout_buffer", default=None
+)
+task_stderr_buffer: ContextVar[io.StringIO | None] = ContextVar(
+    "task_stderr_buffer", default=None
+)
+# tracks if the current execution stack allows direct terminal interaction
+task_interactive: ContextVar[bool] = ContextVar("task_interactive", default=False)
+
+
+class OutputChannel:
+    # for printing logs by batch
+    def __init__(self) -> None:
+        self._queue: queue.Queue[tuple[str, str]] = queue.Queue()
+        self._consumer_thread: threading.Thread = threading.Thread(
+            target=self._consume, daemon=True
+        )
+        self._consumer_thread.start()
+
+    def put(self, stream_type: str, text: str) -> None:
+        if text:
+            self._queue.put((stream_type, text))
+
+    def _consume(self) -> None:
+        while True:
+            stream_type, text = self._queue.get()
+            try:
+                if stream_type == "stdout" and sys.__stdout__ is not None:
+                    _ = sys.__stdout__.write(text)
+                    sys.__stdout__.flush()
+                elif stream_type == "stderr" and sys.__stderr__ is not None:
+                    _ = sys.__stderr__.write(text)
+                    sys.__stderr__.flush()
+                else:
+                    print("Fail to write to stdout or stderr.")
+            except Exception:
+                pass
+            finally:
+                self._queue.task_done()
+
+    def wait_completion(self) -> None:
+        # blocks until all logs are printed
+        self._queue.join()
+
+
+output_channel = OutputChannel()
+
+
+class ContextStream:
+    # proxies writes to a context specific buffer if active
+    # otherwise go back to original
+
+    def __init__(
+        self,
+        original_stream: TextIO,
+        context_var: ContextVar[io.StringIO | None],
+    ) -> None:
+        self.original_stream: TextIO = original_stream
+        self.context_var: ContextVar[io.StringIO | None] = context_var
+
+    def write(self, text: str) -> int:
+        buf = self.context_var.get()
+        # bypass buffer if interactive mode is set
+        if buf is not None and not task_interactive.get():
+            return buf.write(text)
+        _ = self.original_stream.write(text)
+        return len(text)
+
+    def flush(self) -> None:
+        buf = self.context_var.get()
+        # bypass buffer if interactive mode is set
+        if buf is not None and not task_interactive.get():
+            buf.flush()
+        else:
+            self.original_stream.flush()
+
+    def __getattr__(self, name: str) -> object:
+        return cast(object, getattr(self.original_stream, name))
+
+
+# it might be none
+sys.stdout = cast(TextIO, cast(object, ContextStream(sys.stdout, task_stdout_buffer)))
+sys.stderr = cast(TextIO, cast(object, ContextStream(sys.stderr, task_stderr_buffer)))
 
 
 class TaskContext:

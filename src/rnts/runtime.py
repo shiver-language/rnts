@@ -16,6 +16,7 @@ import subprocess
 import shutil
 import os
 import concurrent.futures
+import sys
 import contextvars
 from pathlib import Path
 from typing import Callable, TypeVar
@@ -43,8 +44,26 @@ class RntsRuntime:
         env: dict[str, str] | None = None,
         inherit_stdout: bool = False,
     ) -> subprocess.CompletedProcess[bytes]:
-        stdout = None if inherit_stdout else subprocess.PIPE
-        return subprocess.run(args, cwd=cwd, env=env, stdout=stdout, check=True)
+        if inherit_stdout:
+            res = subprocess.run(
+                args, cwd=cwd, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE
+            )
+
+            # feed data to context interceptor proxy
+            if res.stdout:
+                _ = sys.stdout.write(res.stdout.decode(errors="replace"))
+            if res.stderr:
+                _ = sys.stderr.write(res.stderr.decode(errors="replace"))
+
+            if res.returncode != 0:
+                raise subprocess.CalledProcessError(
+                    res.returncode, args, output=res.stdout, stderr=res.stderr
+                )
+            return res
+        else:
+            return subprocess.run(
+                args, cwd=cwd, env=env, stdout=subprocess.PIPE, check=True
+            )
 
     @staticmethod
     def cp(src: Path, dest: Path) -> None:
