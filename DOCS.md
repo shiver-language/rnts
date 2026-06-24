@@ -129,7 +129,7 @@ rnts backend.build
 ## Safety and Locking
 
 To prevent concurrent runs from corrupting the `.json` cache metadata or overwriting artifacts in the `out/` directory, 
-RNTS uses two locking mechanisms:
+`rnts` uses two locking mechanisms:
 
 1. Process Lock: On startup, it makes a file named `.rnts.lock` in the `out/` directory. If another `rnts` instance 
 detects this, it immediately exits. You may delete `.rnts.lock` if you are absolutely sure that another instance
