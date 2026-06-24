@@ -11,8 +11,13 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.39.8",
     "ruff>=0.15.17",
 ]
 
 [project.scripts]
 rnts = "rnts.cli:main"
+
+[tool.basedpyright]
+include = ["src"]
+typeCheckingMode = "all"
