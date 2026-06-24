@@ -22,6 +22,7 @@ from typing import Callable, TypeVar, ParamSpec, Concatenate, cast, overload
 from filelock import FileLock
 import dill  # pyright: ignore[reportMissingTypeStubs]
 import base64
+from datetime import datetime
 
 from .context import (
     ctx,
@@ -91,6 +92,44 @@ def _deserialize_val(val: object) -> object:
         binary_data = base64.b64decode(val.encode("utf-8"))
         return cast(object, dill.loads(binary_data))  # pyright: ignore[reportUnknownMemberType]
     return val
+
+
+def _rotate_and_write_log(
+    module_name: str, task_name: str, stdout_text: str, stderr_text: str
+) -> None:
+    # skip if there are no logs to write
+    if not stdout_text and not stderr_text:
+        return
+
+    # make the log dir
+    log_dir = Path.cwd() / "out" / "logs" / module_name / task_name
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    # using timestamp as log name
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+    log_file = log_dir / f"{timestamp}.log"
+
+    with open(log_file, "w", encoding="utf-8") as f:
+        if stdout_text:
+            _ = f.write("--- stdout ---\n")
+            _ = f.write(stdout_text)
+            if not stdout_text.endswith("\n"):
+                _ = f.write("\n")
+        if stderr_text:
+            _ = f.write("--- stderr ---\n")
+            _ = f.write(stderr_text)
+            if not stderr_text.endswith("\n"):
+                _ = f.write("\n")
+
+    # rotate logs, keeping only the 5 most recent
+    max_logs = 5
+    existing_logs = sorted(log_dir.glob("*.log"))
+    if len(existing_logs) > max_logs:
+        for old_log in existing_logs[:-max_logs]:
+            try:
+                old_log.unlink()
+            except Exception:
+                pass
 
 
 class CacheManager:
@@ -221,6 +260,9 @@ def task(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]
             ctx.record_upstream_hit(self.module_name, func.__name__, serialized_val)
             return cast(R, cached_res)
 
+        # notify task start in terminal
+        print(f"\033[94m[RNTS] Running this: {self.module_name}.{func.__name__}...\033[0m")
+
         # setup string buffers for current thread context
         stdout_buf = io.StringIO()
         stderr_buf = io.StringIO()
@@ -250,10 +292,19 @@ def task(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]
             task_interactive.reset(token_interactive)
             task_stdout_buffer.reset(token_out)
             task_stderr_buffer.reset(token_err)
+
+            stdout_val = stdout_buf.getvalue()
+            stderr_val = stderr_buf.getvalue()
+
+            # write task logs to disk and rotate old ones
+            _rotate_and_write_log(
+                self.module_name, func.__name__, stdout_val, stderr_val
+            )
+
             # offload task logs as a single batch to the channel
             # then it will be printed sometimes in future
-            output_channel.put("stdout", stdout_buf.getvalue())
-            output_channel.put("stderr", stderr_buf.getvalue())
+            output_channel.put("stdout", stdout_val)
+            output_channel.put("stderr", stderr_val)
 
     setattr(wrapper, "__is_rnts_task__", True)
     return cast(Callable[Concatenate[M, P], R], wrapper)

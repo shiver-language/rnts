@@ -142,6 +142,11 @@ For the example configuration provided above, you would run:
 rnts backend.build
 ```
 
+## Logging
+
+`rnts` saves your logs. Particularly, the 5 most recent logs of `rnts`, your build script's and the binaries' prints. 
+You may find them in `out/logs/module_name/command_name`, where the log files contains timestamped file names.
+
 ## Safety and Locking
 
 To prevent concurrent runs from corrupting the `.json` cache metadata or overwriting artifacts in the `out/` directory,

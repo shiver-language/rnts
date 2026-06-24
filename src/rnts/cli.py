@@ -17,6 +17,7 @@ import sys
 from pathlib import Path
 from typing import Callable, cast
 from .models import Module
+from .context import output_channel
 
 
 def load_user_build_file() -> bool:
@@ -44,8 +45,12 @@ def main() -> None:
     try:
         # detect / write lock file
         if lock_path.is_file():
-            print("Another RNTS instance is running")
-            print("If you are certain that it is not, delete", str(lock_path))
+            print("\033[91m[RNTS] Another RNTS instance is running\033[0m")
+            print(
+                "\033[91m[RNTS] If you are certain that it is not, delete "
+                + str(lock_path)
+                + "\033[0m"
+            )
             sys.exit(1)
 
         lock_path.parent.mkdir(parents=True, exist_ok=True)
@@ -53,13 +58,15 @@ def main() -> None:
 
         # find and load the build file
         if not load_user_build_file():
-            print("Error: No 'build.py' found in the current directory.")
+            print(
+                "\033[91m[RNTS] Error: No 'build.py' found in the current directory.\033[0m"
+            )
             sys.exit(1)
 
         target = sys.argv[1]
         if "." not in target:
             print(
-                f"Error: Invalid target format '{target}'. Use 'module_name.command_name'."
+                f"\033[91m[RNTS] Error: Invalid target format '{target}'. Use 'module_name.command_name'.\033[0m"
             )
             sys.exit(1)
 
@@ -69,14 +76,14 @@ def main() -> None:
         module_instance = Module.get_module(mod_name)
         if not module_instance:
             available_mods = list(Module._registry.keys())  # pyright: ignore[reportPrivateUsage]
-            print(f"Error: Module '{mod_name}' not found.")
-            print(f"Registered modules: {available_mods}")
+            print(f"\033[91m[RNTS] Error: Module '{mod_name}' not found.\033[0m")
+            print(f"\033[93m[RNTS] Registered modules: {available_mods}\033[0m")
             sys.exit(1)
 
         # look up the task or commands
         if not hasattr(module_instance, cmd_name):
             print(
-                f"Error: Command or Task '{cmd_name}' not found on module '{mod_name}'."
+                f"\033[91m[RNTS] Error: Command or Task '{cmd_name}' not found on module '{mod_name}'.\033[0m"
             )
             sys.exit(1)
 
@@ -85,11 +92,15 @@ def main() -> None:
 
         # run this
         try:
-            print(f"Running this: {mod_name}.{cmd_name}...")
+            print(f"\033[94m[RNTS] Running this: {mod_name}.{cmd_name}...\033[0m")
             task_func()
-            print("This ran successfully.")
+
+            # block until all async channel logs finish printing
+            output_channel.wait_completion()
+            print("\033[92m[RNTS] This ran successfully.\033[0m")
         except Exception as e:
-            print(f"This failed with an exception: {e}")
+            output_channel.wait_completion()
+            print(f"\033[91m[RNTS] This failed with an exception: {e}\033[0m")
             sys.exit(1)
     finally:
         lock_path.unlink()
