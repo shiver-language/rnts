@@ -1,6 +1,6 @@
 # RNTS
 
-`rnts`, short for "run this", is a build tool / command runner written in Python.
+`rnts` is short for "run this"; it is a build tool / command runner written in Python.
 
 See [docs](DOCS.md) for documentation.
 
@@ -64,7 +64,7 @@ CProjectBuilder()
 
 ## Installing
 
-You will need `uv`.
+You will need [uv](https://github.com/astral-sh/uv).
 
 ```bash
 uv tool install --editable .
@@ -72,14 +72,16 @@ uv tool install --editable .
 
 ## What is RNTS?
 
-`rnts` is intended as a build tool for the Shiver language project, but it is not
-just a specialized tool, rather, it is a framework that allows you to write intuitive
-build scripts. In other words, you can adapt `rnts` to build any languages you like.
+`rnts` is intended as a build tool for the Shiver language project. 
+However it is not just a specialized tool, rather it is a framework that allows you to write intuitive
+build scripts. 
+In other words, you can adapt `rnts` to build any languages you like.
 
 ## How does RNTS work?
 
-`rnts` is heavily inspired by the Mill build tool. It allows you to define sources and make tasks
-depend on it. Tasks may depend on other tasks. For example:
+`rnts` is heavily inspired by the Mill build tool, it allows you to define sources and make tasks
+depend on it. 
+Tasks may also depend on other tasks, for example:
 
 ```
 [ pull dependency task ]
@@ -101,15 +103,15 @@ depend on it. Tasks may depend on other tasks. For example:
         ( app.tar.gz )
 ```
 
-You can execute any tasks. `rnts` will run all the dependency tasks of it. Say
-you request `rnts` to execute the link task, the pull dependency and the
+You can execute any task, and `rnts` will run all dependant tasks. 
+Say you have `rnts` execute any link task, the pull dependency and the
 two compile tasks will be ran, followed by running the actual link task.
 
 Features:
 
-- caching: tasks that are already ran won't have to run again if the sources it depends on remain unchanged
-- concurrency: tasks can run in parallel to each other
-- intuitive: easy to write, easy to reason about, you can express any build pipelines with this model
+- caching: tasks that already ran won't have to run again if any dependant sources on remain unchanged
+- concurrency: tasks can run parallel to each other
+- intuitive: easy to write, you can express any build pipelines with this model
 - powerful: build scripts are written in Python
 
 ## Why?
@@ -127,6 +129,6 @@ We see issues in a lot of build systems out there.
 ### Why Python?
 
 - Most developers have Python installed already
-- Most developers know Python, if not, it is easy to learn
-- Allows the build scripts to be cross platform
-- Scripting languages like Python is well suited for writing build... scripts
+- Most developers know Python, if not then it is easy to learn
+- Allows build scripts to be cross platform
+- Scripting languages like Python are well suited for writing build... scripts
