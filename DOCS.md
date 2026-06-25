@@ -4,7 +4,7 @@ To create an `rnts` project, you need to make an empty directory, and then make 
 
 ## Directory Structure
 
-The root of your workspace should contain a `build.py` file. 
+The root of your workspace should contain a `build.py` file.
 Modules defined in the build file will be searched for by name as files and loaded.
 
 ```
@@ -59,7 +59,7 @@ BackendModule()
 
 ## Core Concepts & Decorators
 
-The build graph is constructed using 3 decorators. 
+The build graph is constructed using 3 decorators.
 These decorators define how tasks are ran, tracked and cached.
 
 | Decorator  | Purpose                                                                           | Caching Behavior                                                                                                   |
@@ -80,14 +80,14 @@ When a `@task` is called, `rnts` performs two cache checks:
 
 ## `ctx`
 
-`rnts` runs on a variable tracker called `TaskContext` (imported as `ctx`). 
+`rnts` runs on a variable tracker called `TaskContext` (imported as `ctx`).
 This allows functions to know where they are writing data and who called them.
 
-- `ctx.dest`: Every `@command` and `@task` is assigned an isolated output directory located in `out/modules/<ClassName>/<module_name>/<task_name>`. 
-You must write your build artifacts to `ctx.dest`.
-- Execution Stack: `ctx` maintains a stack of active tasks (`push_task`, `pop_task`). 
-This allows `rnts` to implicitly build a dependency tree. 
-If `task a` calls `task b`, `task b` is automatically recorded as an upstream dependency of `task a`.
+- `ctx.dest`: Every `@command` and `@task` is assigned an isolated output directory located in `out/modules/<ClassName>/<module_name>/<task_name>`.
+  You must write your build artifacts to `ctx.dest`.
+- Execution Stack: `ctx` maintains a stack of active tasks (`push_task`, `pop_task`).
+  This allows `rnts` to implicitly build a dependency tree.
+  If `task a` calls `task b`, `task b` is automatically recorded as an upstream dependency of `task a`.
 
 ## Runtime
 
@@ -147,7 +147,7 @@ rnts backend.build
 ## Logging
 
 `rnts` saves your logs.
-Particularly, the 5 most recent logs of `rnts`, your build script's and the binaries' prints. 
+Particularly, the 5 most recent logs of `rnts`, your build script's and the binaries' prints.
 You may find them in `out/logs/module_name/command_name`, where the log files contains timestamped file names.
 
 ## Safety and Locking
@@ -156,6 +156,6 @@ To prevent concurrent runs from corrupting the `.json` cache metadata or overwri
 `rnts` uses two locking mechanisms:
 
 1. Process Lock: On startup, it makes a file named `.rnts.lock` in the `out/` directory.
-   If another `rnts` instance detects this, it immediately exits. You may delete `.rnts.lock` if you are absolutely sure that another instance is not      running.
+   If another `rnts` instance detects this, it immediately exits. You may delete `.rnts.lock` if you are absolutely sure that another instance is not running.
 2. `FileLocks`: Individual hash files and metadata JSON files are locked during read/write operations to ensure
    thread-safety when using `rnts.gather()`.

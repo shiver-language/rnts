@@ -72,15 +72,15 @@ uv tool install --editable .
 
 ## What is RNTS?
 
-`rnts` is intended as a build tool for the Shiver language project. 
+`rnts` is intended as a build tool for the Shiver language project.
 However it is not just a specialized tool, rather it is a framework that allows you to write intuitive
-build scripts. 
+build scripts.
 In other words, you can adapt `rnts` to build any languages you like.
 
 ## How does RNTS work?
 
 `rnts` is heavily inspired by the Mill build tool, it allows you to define sources and make tasks
-depend on it. 
+depend on it.
 Tasks may also depend on other tasks, for example:
 
 ```
@@ -103,8 +103,8 @@ Tasks may also depend on other tasks, for example:
         ( app.tar.gz )
 ```
 
-You can execute any task, and `rnts` will run all dependant tasks. 
-Say you have `rnts` execute any link task, the pull dependency and the
+You can execute any task, and `rnts` will run all dependant tasks.
+Say you have `rnts` execute the link task, the pull dependency and the
 two compile tasks will be ran, followed by running the actual link task.
 
 Features:
