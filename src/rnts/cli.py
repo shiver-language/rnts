@@ -12,8 +12,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import importlib.util
 import sys
+
+sys.pycache_prefix = "/out/rnts/pycache/"
+
+import importlib.util
 from pathlib import Path
 from typing import Callable, cast
 from rnts.decorators import compute_dir_hash
