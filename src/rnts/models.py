@@ -41,6 +41,11 @@ class Module:
                 "Module 'name' must be explicitly defined and cannot be empty."
             )
 
+        if name in Module._registry:
+            raise ValueError(
+                f"Module name '{name}' is already registered. Module names must be unique."
+            )
+
         self.module_name = name
         # source base starts directly at the project workspace root / module name
         self.module_dir = Path.cwd() / name
