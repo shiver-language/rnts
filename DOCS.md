@@ -111,10 +111,11 @@ The `RntsRuntime` class (imported as the `rnts` variable) provides helper method
 `rnts` supports multi-threading for parallel task execution.
 
 `rnts.gather(*tasks)` takes a list of callable functions, copies the current context (`contextvars.copy_context()`),
-and runs them concurrently in a `ThreadPoolExecutor` sized to the host's CPU core count.
+and runs them concurrently in a `ThreadPoolExecutor` sized to the host's CPU core count. With a type checker, this
+only accepts tasks that returns the same type of data.
 
 `rnts.prun(*tasks)` is `gather` except it does not return anything. It will still block until all the internal tasks
-are done.
+are done. Allows passing in tasks with different types should you enable a type checker.
 
 ### Task Output Capturing
 
