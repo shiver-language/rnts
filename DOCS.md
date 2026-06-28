@@ -113,8 +113,8 @@ The `RntsRuntime` class (imported as the `rnts` variable) provides helper method
 `rnts.gather(*tasks)` takes a list of callable functions, copies the current context (`contextvars.copy_context()`),
 and runs them concurrently in a `ThreadPoolExecutor` sized to the host's CPU core count.
 
-`rnts.prun(*tasks)` takes a list of callable functions and copies the current context just like `gather`, except
-it is completely asynchronous, meaning it does not return anything, nor does it wait for returns.
+`rnts.prun(*tasks)` is `gather` except it does not return anything. It will still block until all the internal tasks
+are done.
 
 ### Task Output Capturing
 

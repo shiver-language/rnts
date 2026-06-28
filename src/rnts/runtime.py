@@ -106,11 +106,19 @@ class RntsRuntime:
     def prun(self, *tasks: Callable[[], object]) -> None:
         """
         Executes multiple task functions concurrently using the shared,
-        process-wide ThreadPoolExecutor. Does not return anything.
+        process-wide ThreadPoolExecutor. Blocks until all are complete.
         """
+        futures: list[concurrent.futures.Future[object]] = []
+
         for task_func in tasks:
             ctx = contextvars.copy_context()
-            _ = self._executor.submit(_run_with_context, ctx, task_func)
+            future = self._executor.submit(_run_with_context, ctx, task_func)
+            futures.append(future)
+
+        _ = concurrent.futures.wait(futures)
+
+        for future in futures:
+            _ = future.result()
 
 
 rnts = RntsRuntime()
