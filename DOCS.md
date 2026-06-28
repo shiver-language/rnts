@@ -131,6 +131,62 @@ tasks (for example running a piece of binary that requires user input), so you c
 @command(interactive=True)
 ```
 
+## 3rd Party Templates
+
+`rnts` supports templates. You may upload existing modules to online text hosts and pull it down.
+
+For example, put the following code in a random directory and give it a name. In this case we will
+name it `tmp.py`.
+
+```python
+from rnts import Module, task, command
+
+
+class ServiceModule(Module):
+    def __init__(self, name: str, port: int):
+        super().__init__(name)
+        self.port = port
+
+    @task
+    def configure(self) -> str:
+        print(f"[{self.module_name}] making config for port {self.port}")
+        return f"config_p{self.port}"
+
+    @command
+    def start(self) -> None:
+        print(f"[{self.module_name}] launching on port {self.port}")
+
+```
+
+`cd` into the directory with the file and let's test it out with Python's server:
+
+```bash
+python -m http.server 8080
+```
+
+Now, make an empty `rnts` project and use it. Put this in `build.py`.
+
+```python
+from rnts import rnts, load_template
+
+service_tmpl = load_template("http://localhost:8080/tmp.py", "service_template")
+
+ServiceModule = service_tmpl.ServiceModule
+
+auth_service = ServiceModule(name="auth", port=8081)
+payment_service = ServiceModule(name="payments", port=8082)
+gateway_service = ServiceModule(name="gateway", port=8080)
+```
+
+Now you can use custom modules.
+
+```bash
+rnts auth.start
+```
+
+Note that `rnts` does not check for template updates: delete `out/templates` to make
+`rnts` download the templates again.
+
 ## Type Serialization (`models.py` & Internals)
 
 Because `@task` return values are cached to disk as JSON metadata, `rnts` needs to serialize and deserialize Python objects.

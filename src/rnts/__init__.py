@@ -16,6 +16,7 @@ from rnts.models import Module, PathRef
 from rnts.decorators import task, source, command
 from rnts.context import ctx
 from rnts.runtime import rnts
+from rnts.template import load_template
 
 __all__ = [
     "Module",
@@ -25,4 +26,5 @@ __all__ = [
     "command",
     "ctx",
     "rnts",
+    "load_template",
 ]
