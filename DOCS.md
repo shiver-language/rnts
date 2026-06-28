@@ -106,12 +106,15 @@ The `RntsRuntime` class (imported as the `rnts` variable) provides helper method
 - `rnts.relativize(path)`: Converts an absolute path to a path relative to the workspace root.
 - `rnts.join_paths(paths)`: Joins paths using the OS-specific path separator.
 
-### Concurrency: `rnts.gather()`
+### Concurrency: `rnts.gather()` and `rnts.prun()`
 
 `rnts` supports multi-threading for parallel task execution.
 
 `rnts.gather(*tasks)` takes a list of callable functions, copies the current context (`contextvars.copy_context()`),
 and runs them concurrently in a `ThreadPoolExecutor` sized to the host's CPU core count.
+
+`rnts.prun(*tasks)` takes a list of callable functions and copies the current context just like `gather`, except
+it is completely asynchronous, meaning it does not return anything, nor does it wait for returns.
 
 ### Task Output Capturing
 
