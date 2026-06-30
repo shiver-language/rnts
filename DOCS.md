@@ -7,6 +7,9 @@ To create an `rnts` project, you need to make an empty directory, and then make 
 The root of your workspace should contain a `build.py` file.
 Modules defined in the build file will be searched for by name as files and loaded.
 
+We will use a project written in the Go programming language as example. The principle of `rnts`
+will remain the same for all programming languages.
+
 ```
 my_workspace/
 ├── build.py           # the build script
@@ -44,6 +47,7 @@ class BackendModule(Module):
         # make sure that this task depends on a source
         src_dir = self.get_sources()
         # ctx.dest is the automatically managed output directory
+        # change this command if you are not building Golang projects
         rnts.sh(["go", "build", "-o", str(ctx.dest / "app")], cwd=self.module_dir)
         return ctx.dest / "app"
 
@@ -73,6 +77,8 @@ These decorators define how tasks are ran, tracked and cached.
 | `@task`    | Executes build logic, manages dependencies, and returns results.                  | Cached. Does not run if source hashes and upstream task outputs haven't changed.                                   |
 | `@source`  | Tracks input directories/files. Hashes directory contents with MD5.               | Determines cache. Hashes are compared to previous execution to determine if tasks depending on it will run or not. |
 
+Note: `@task`s can still be ran with the CLI command, although it may skip execution due to caching.
+
 ## `CacheManager` & `ProcessCache`
 
 When a `@task` is called, `rnts` performs two cache checks:
@@ -80,7 +86,7 @@ When a `@task` is called, `rnts` performs two cache checks:
 1. `ProcessCache`: Checks if the task is already ran during current CLI execution, if so it will return
    the value immediately.
 2. `CacheManager`: It reads a `.json` metadata file in `out/hashes/`. It checks the hashes of any `@source`
-   directories and the return values of any upstraem `@task` dependencies, and if everything matches it deserializes
+   directories and the return values of any upstream `@task` dependencies, and if everything matches it deserializes
    the previous result and skips execution.
 
 ## `ctx`
