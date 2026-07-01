@@ -13,10 +13,13 @@
 #  limitations under the License.
 
 import importlib.util
-from types import ModuleType
-import urllib.request
 import sys
+import urllib.request
 from pathlib import Path
+from types import ModuleType
+
+from rich import print
+from rich.markup import escape
 
 
 def load_template(url: str, template_name: str) -> ModuleType:
@@ -28,13 +31,13 @@ def load_template(url: str, template_name: str) -> ModuleType:
 
     if not template_file.exists():
         print(
-            f"\033[94m[RNTS] Pulling template '{template_name}' from remote...\033[0m"
+            f"[blue][RNTS] Pulling template '{escape(template_name)}' from remote...[/blue]"
         )
         try:
             _ = urllib.request.urlretrieve(url, template_file)
         except Exception as e:
             print(
-                f"\033[91m[RNTS] Failed to download template '{template_name}': {e}\033[0m"
+                f"[red][RNTS] Failed to download template '{escape(template_name)}': {escape(str(e))}[/red]"
             )
             sys.exit(1)
 
@@ -50,7 +53,7 @@ def load_template(url: str, template_name: str) -> ModuleType:
             return template_module
         except Exception as e:
             print(
-                f"\033[91m[RNTS] Failed to execute template '{template_name}': {e}\033[0m"
+                f"[red][RNTS] Failed to execute template '{escape(template_name)}': {escape(str(e))}[/red]"
             )
             sys.exit(1)
 

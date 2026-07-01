@@ -12,17 +12,18 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import sys
-
-sys.pycache_prefix = "/out/rnts/pycache/"
-
 import importlib.util
+import sys
 from pathlib import Path
 from typing import Callable, cast
-from rnts.decorators import compute_dir_hash
 import shutil
-from .models import Module
+from rich import print
+from rich.markup import escape
+from rnts.decorators import compute_dir_hash
 from .context import output_channel
+from .models import Module
+
+sys.pycache_prefix = "/out/rnts/pycache/"
 
 
 def load_user_build_file() -> bool:
@@ -51,18 +52,16 @@ def main() -> None:
     try:
         # detect / write lock file
         if lock_path.is_file():
-            print("\033[91m[RNTS] Another RNTS instance is running\033[0m")
+            print("[red][RNTS] Another RNTS instance is running[/red]")
             print(
-                "\033[91m[RNTS] If you are certain that it is not, delete "
-                + str(lock_path)
-                + "\033[0m"
+                f"[red][RNTS] If you are certain that it is not, delete {lock_path}[/red]"
             )
             sys.exit(1)
 
         # find and load the build file
         if not load_user_build_file():
             print(
-                "\033[91m[RNTS] Error: No 'build.py' found in the current directory.\033[0m"
+                "[red][RNTS] Error: No 'build.py' found in the current directory.[/red]"
             )
             sys.exit(1)
 
@@ -85,7 +84,7 @@ def main() -> None:
         target = sys.argv[1]
         if "." not in target:
             print(
-                f"\033[91m[RNTS] Error: Invalid target format '{target}'. Use 'module_name.command_name'.\033[0m"
+                f"[red][RNTS] Error: Invalid target format '{escape(target)}'. Use 'module_name.command_name'.[/red]"
             )
             sys.exit(1)
 
@@ -95,14 +94,16 @@ def main() -> None:
         module_instance = Module.get_module(mod_name)
         if not module_instance:
             available_mods = list(Module._registry.keys())  # pyright: ignore[reportPrivateUsage]
-            print(f"\033[91m[RNTS] Error: Module '{mod_name}' not found.\033[0m")
-            print(f"\033[93m[RNTS] Registered modules: {available_mods}\033[0m")
+            print(f"[red][RNTS] Error: Module '{escape(mod_name)}' not found.[/red]")
+            print(
+                f"[yellow][RNTS] Registered modules: {escape(str(available_mods))}[/yellow]"
+            )
             sys.exit(1)
 
         # look up the task or commands
         if not hasattr(module_instance, cmd_name):
             print(
-                f"\033[91m[RNTS] Error: Command or Task '{cmd_name}' not found on module '{mod_name}'.\033[0m"
+                f"[red][RNTS] Error: Command or Task '{escape(cmd_name)}' not found on module '{escape(mod_name)}'.[/red]"
             )
             sys.exit(1)
 
@@ -111,15 +112,17 @@ def main() -> None:
 
         # run this
         try:
-            print(f"\033[94m[RNTS] Running this: {mod_name}.{cmd_name}...\033[0m")
+            print(
+                f"[blue][RNTS] Running this: {escape(mod_name)}.{escape(cmd_name)}...[/blue]"
+            )
             task_func()
 
             # block until all async channel logs finish printing
             output_channel.wait_completion()
-            print("\033[92m[RNTS] This ran successfully.\033[0m")
+            print("[green][RNTS] This ran successfully.[/green]")
         except Exception as e:
             output_channel.wait_completion()
-            print(f"\033[91m[RNTS] This failed with an exception: {e}\033[0m")
+            print(f"[red][RNTS] This failed with an exception: {escape(str(e))}[/red]")
             sys.exit(1)
     finally:
         lock_path.unlink()

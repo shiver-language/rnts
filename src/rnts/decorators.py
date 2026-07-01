@@ -23,7 +23,8 @@ from filelock import FileLock
 import dill  # pyright: ignore[reportMissingTypeStubs]
 import base64
 from datetime import datetime
-
+from rich import print
+from rich.markup import escape
 from .context import (
     ctx,
     output_channel,
@@ -31,7 +32,6 @@ from .context import (
     task_stdout_buffer,
     task_interactive,
 )
-
 from .models import Module
 
 P = ParamSpec("P")
@@ -274,7 +274,7 @@ def task(func: Callable[Concatenate[M, P], R]) -> Callable[Concatenate[M, P], R]
 
         # notify task start in terminal
         print(
-            f"\033[94m[RNTS] Running this: {self.module_name}.{func.__name__}...\033[0m"
+            f"[blue][RNTS] Running this: {escape(self.module_name)}.{escape(func.__name__)}...[/blue]"
         )
 
         # setup string buffers for current thread context
